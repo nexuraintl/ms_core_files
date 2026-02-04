@@ -1,20 +1,38 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from urllib.parse import quote_plus
 import os
 
-# Solo requerimos esta URL para la PoC
-DATABASE_AUDITORIA_URL = os.getenv("DATABASE_AUDITORIA_URL")
+# 1. Obtenemos las variables de entorno individuales
+DB_USER = os.getenv("DB_USER")
+DB_PASS = os.getenv("DB_PASS")
+DB_HOST = os.getenv("DB_HOST")
+DB_NAME = os.getenv("DB_NAME")
+DB_PORT = os.getenv("DB_PORT", "3306")
 
-if not DATABASE_AUDITORIA_URL:
-    # Fail fast: Si no hay string de conexión, no tiene sentido arrancar
-    raise RuntimeError("La variable de entorno DATABASE_AUDITORIA_URL es obligatoria.")
+# 2. Validación: Asegurarnos de que todas las variables necesarias existan
+if not all([DB_USER, DB_PASS, DB_HOST, DB_NAME]):
+    raise RuntimeError(
+        "Faltan variables de entorno obligatorias (DB_USER, DB_PASS, DB_HOST, DB_NAME)."
+    )
 
+# 3. Codificación segura: Esto transforma caracteres como '#' o '|' automáticamente
+user_encoded = quote_plus(DB_USER)
+pass_encoded = quote_plus(DB_PASS)
+
+# 4. Construcción de la URL de conexión
+# Formato: mysql+pymysql://user:password@host:port/dbname
+DATABASE_AUDITORIA_URL = (
+    f"mysql+pymysql://{user_encoded}:{pass_encoded}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+)
+
+# 5. Configuración del Engine
 engine_auditoria = create_engine(
     DATABASE_AUDITORIA_URL, 
     pool_pre_ping=True, 
     pool_size=5, 
     max_overflow=10,
-    pool_recycle=1800 # Reiniciar conexiones cada 30 min
+    pool_recycle=1800 
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine_auditoria)
