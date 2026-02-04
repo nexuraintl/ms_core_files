@@ -7,7 +7,7 @@ app = FastAPI(title="PoC Auditoria Cloud Run")
 
 @app.get("/verificar-descarga/{req_id}")
 async def verificar_descarga(
-    req_id: str = Path(..., title="Request ID", description="El identificador único de la solicitud"),
+    req_id: str = Path(..., title="ID", description="El identificador único de la solicitud"),
     db: Session = Depends(get_db)
 ):
     """
@@ -16,7 +16,7 @@ async def verificar_descarga(
     try:
         # Consulta filtrando por request_id
         registro = db.query(DescargaAuditoria).filter(
-            DescargaAuditoria.request_id == req_id
+            DescargaAuditoria.id == req_id
         ).first()
 
         # Validación básica
