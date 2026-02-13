@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from .database import get_db
 from .models import DescargaAuditoria
 import os
-from flask import Flask, jsonify
+from fastapi.responses import JSONResponse
 app = FastAPI(title="PoC Auditoria Cloud Run")
 
 @app.get("/verificar-descarga/{req_id}")
@@ -60,7 +60,15 @@ async def test_nfs_access():
         if info["existe_ruta"]:
             # Listamos solo los primeros 10 archivos para no saturar
             info["contenido_ejemplo"] = os.listdir(ruta_nfs)[:10]
+        else:
+            info["error"] = "La ruta no existe dentro del contenedor."
+            
     except Exception as e:
-        return jsonify({"status": "error", "mensaje": str(e)}), 500
+        # Usamos JSONResponse para enviar el código 500 en FastAPI
+        return JSONResponse(
+            status_code=500, 
+            content={"status": "error", "mensaje": str(e)}
+        )
         
-    return jsonify(info)
+    # En FastAPI basta con retornar el diccionario directamente
+    return info
