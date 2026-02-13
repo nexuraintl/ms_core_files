@@ -49,7 +49,7 @@ async def verificar_descarga(
 @app.get("/verificar-lectura/")
 async def test_nfs_read():
     # Usamos uno de los archivos que ya sabemos que existen
-    archivo_prueba = "/app/media/info/coomeva/media/sxFile109336"
+    archivo_prueba = "/app/media/includes-media.txt"
     
     try:
         with open(archivo_prueba, "r") as f:
