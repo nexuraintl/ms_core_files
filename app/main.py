@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from .database import get_db
 from .models import DescargaAuditoria
 import os
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse
 app = FastAPI(title="PoC Auditoria Cloud Run")
 
 @app.get("/verificar-descarga/{req_id}")
@@ -46,21 +46,27 @@ async def verificar_descarga(
             detail=f"Error interno de base de datos: {str(e)}"
         )
 
-@app.get("/verificar-lectura/")
-async def test_nfs_read():
-    # Usamos uno de los archivos que ya sabemos que existen
-    archivo_prueba = "/app/media/includes-media.txt"
+app = FastAPI()
+
+# Definimos la constante de la ruta donde está montado el NFS
+NFS_MOUNT_PATH = "/app/media"
+
+@app.get("/descargar/{ruta_archivo:path}")
+async def descargar_archivo(ruta_archivo: str):
+    # 1. Construimos la ruta absoluta uniendo el montaje con la ruta de la DB
+    # Ejemplo: /app/media/public_html/uploads/foto.jpg
+    path_final = os.path.join(NFS_MOUNT_PATH, ruta_archivo)
+
+    # 2. Validación de seguridad y existencia
+    if not os.path.exists(path_final):
+        raise HTTPException(status_code=404, detail=f"Archivo no encontrado en la ruta: {path_final}")
+
+    # 3. Servir el archivo
+    # 'filename' es el nombre que verá el usuario al descargar
+    nombre_descarga = os.path.basename(path_final)
     
-    try:
-        with open(archivo_prueba, "r") as f:
-            primeras_lineas = f.readlines()[:3] # Lee solo las primeras 3 líneas
-        return {
-            "status": "exito",
-            "archivo": archivo_prueba,
-            "contenido_previa": primeras_lineas
-        }
-    except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={"status": "error_lectura", "mensaje": str(e)}
-        )
+    return FileResponse(
+        path=path_final, 
+        filename=nombre_descarga,
+        media_type='application/octet-stream'
+    )
