@@ -3,6 +3,7 @@ import os
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from google.cloud import secretmanager
+from core.config import settings
 
 client = secretmanager.SecretManagerServiceClient()
 
@@ -11,9 +12,7 @@ _engines = {}
 
 def get_config_from_secret():
     """Trae el JSON maestro de Secret Manager"""
-    project_id = os.getenv('GCP_PROJECT_ID')
-    secret_id = "MICROSERVICE_CONFIG" # Nombre de tu secreto
-    name = f"projects/{project_id}/secrets/{secret_id}/versions/latest"
+    name = f"projects/{settings.PROJECT_ID}/secrets/{settings.SECRET_ID}/versions/{settings.SECRET_VERSION}"
     
     response = client.access_secret_version(request={"name": name})
     return json.loads(response.payload.data.decode("UTF-8"))
@@ -22,7 +21,7 @@ def get_engine_for_domain(domain: str, config: dict):
     """Retorna o crea el motor de base de datos para un dominio específico"""
     if domain not in _engines:
         db_cfg = config[domain]["db_config"]
-        url = f"mysql+aiomysql://{db_cfg['user']}:{db_cfg['pass']}@{db_cfg['host']}/{db_cfg['name']}"
+        url = f"mysql+aiomysql://{db_cfg['user']}:{db_cfg['pass']}@{db_cfg['host']}:{db_cfg["port"]}/{db_cfg['name']}"
         
         _engines[domain] = create_async_engine(
             url, pool_size=5, max_overflow=10, pool_recycle=3600

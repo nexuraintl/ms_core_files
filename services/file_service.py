@@ -1,8 +1,7 @@
 import os
 import aiofiles
 from fastapi import HTTPException
-
-CHUNK_SIZE = 1024 * 1024 # 1MB
+from core.config import settings
 
 class FileService:
     @staticmethod
@@ -26,6 +25,6 @@ class FileService:
     async def file_iterator(file_path: str):
         async with aiofiles.open(file_path, mode="rb") as f:
             while True:
-                chunk = await f.read(CHUNK_SIZE)
+                chunk = await f.read(settings.CHUNK_SIZE)
                 if not chunk: break
                 yield chunk
