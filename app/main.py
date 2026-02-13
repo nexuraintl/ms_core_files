@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, Path
 from sqlalchemy.orm import Session
 from .database import get_db
 from .models import DescargaAuditoria
+import os
 
 app = FastAPI(title="PoC Auditoria Cloud Run")
 
@@ -44,3 +45,32 @@ async def verificar_descarga(
             status_code=500, 
             detail=f"Error interno de base de datos: {str(e)}"
         )
+
+@app.get("/verificar-nfs/")
+async def test_nfs_access():
+    nfs_path = "/app/media"
+    print(f"--- Iniciando prueba de NFS en: {nfs_path} ---")
+    
+    # 1. ¿Existe la carpeta?
+    if os.path.exists(nfs_path):
+        print(f"✅ La carpeta {nfs_path} es visible.")
+        
+        # 2. ¿Qué hay adentro? (limitado a 5 para no saturar)
+        try:
+            files = os.listdir(nfs_path)
+            print(f"📁 Contenido encontrado: {files[:5]}")
+        except Exception as e:
+            print(f"❌ Error al listar archivos: {e}")
+            
+        # 3. ¿Podemos escribir? (Prueba de permisos)
+        try:
+            test_file = os.path.join(nfs_path, "test_desde_cloudrun.txt")
+            with open(test_file, "w") as f:
+                f.write("Cloud Run estuvo aquí")
+            print("📝 Prueba de escritura: EXITOSA")
+        except Exception as e:
+            print(f"❌ Error de escritura (Permisos): {e}")
+    else:
+        print(f"⚠️ La ruta {nfs_path} NO existe en el contenedor.")
+
+test_nfs_access()
