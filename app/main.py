@@ -46,29 +46,21 @@ async def verificar_descarga(
             detail=f"Error interno de base de datos: {str(e)}"
         )
 
-@app.get("/verificar-nfs/")
-async def test_nfs_access():
-    ruta_nfs = "/app/media"
-    info = {
-        "existe_ruta": os.path.exists(ruta_nfs),
-        "es_directorio": os.path.isdir(ruta_nfs) if os.path.exists(ruta_nfs) else False,
-        "contenido_ejemplo": [],
-        "error": None
-    }
+@app.get("/verificar-lectura/")
+async def test_nfs_read():
+    # Usamos uno de los archivos que ya sabemos que existen
+    archivo_prueba = "/app/media/info/coomeva/media/sxFile109336"
     
     try:
-        if info["existe_ruta"]:
-            # Listamos solo los primeros 10 archivos para no saturar
-            info["contenido_ejemplo"] = os.listdir(ruta_nfs)[:10]
-        else:
-            info["error"] = "La ruta no existe dentro del contenedor."
-            
+        with open(archivo_prueba, "r") as f:
+            primeras_lineas = f.readlines()[:3] # Lee solo las primeras 3 líneas
+        return {
+            "status": "exito",
+            "archivo": archivo_prueba,
+            "contenido_previa": primeras_lineas
+        }
     except Exception as e:
-        # Usamos JSONResponse para enviar el código 500 en FastAPI
         return JSONResponse(
-            status_code=500, 
-            content={"status": "error", "mensaje": str(e)}
+            status_code=500,
+            content={"status": "error_lectura", "mensaje": str(e)}
         )
-        
-    # En FastAPI basta con retornar el diccionario directamente
-    return info
