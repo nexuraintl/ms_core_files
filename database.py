@@ -21,7 +21,7 @@ def get_engine_for_domain(domain: str, config: dict):
     """Retorna o crea el motor de base de datos para un dominio específico"""
     if domain not in _engines:
         db_cfg = config[domain]["db_config"]
-        url = f"mysql+aiomysql://{db_cfg['user']}:{db_cfg['pass']}@{db_cfg['host']}:{db_cfg["port"]}/{db_cfg['name']}"
+        url = f"mysql+aiomysql://{db_cfg['user']}:{db_cfg['pass']}@{db_cfg['host']}:{db_cfg['port']}/{db_cfg['name']}"
         
         _engines[domain] = create_async_engine(
             url, pool_size=5, max_overflow=10, pool_recycle=3600
