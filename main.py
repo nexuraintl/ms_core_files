@@ -89,7 +89,7 @@ async def download_file(audit_id: int, request: Request):
     domain_cfg = full_config[domain]
     # Si usas Pydantic en obtener_configuracion, accedes como domain_cfg.nfs_mount_path
     # Si es dict, usas domain_cfg["nfs_mount_path"]
-    nfs_base_path = getattr(domain_cfg, "nfs_mount_path", domain_cfg.get("nfs_mount_path"))
+    nfs_base_path = getattr(domain_cfg, "nfs_mount_path", None)
 
     # 2. Conexión dinámica a la BD del dominio
     async for db in get_db_session(domain, full_config):
