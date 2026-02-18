@@ -78,6 +78,12 @@ async def download_file(audit_id: int, request: Request):
     # Usamos el AuthService para obtener la IP real (detrás de proxies)
     client_ip = AuthService.get_client_ip(request)
     domain = request.headers.get("x-forwarded-host", request.headers.get("host"))
+    forwarded_host = request.headers.get("x-forwarded-host")
+    host = request.headers.get("host")
+    return f"""
+    x-forwarded-host: {forwarded_host}<br>
+    host: {host}
+    """
     
     full_config = obtener_configuracion()
     
