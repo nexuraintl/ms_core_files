@@ -5,6 +5,11 @@ from datetime import datetime
 from fastapi import HTTPException
 from core.config import settings
 
+# Registramos tipos MIME comunes que suelen no estar en la base estándar
+mimetypes.add_type('application/x-zip-compressed', '.zip')
+mimetypes.add_type('application/x-7z-compressed', '.7z')
+mimetypes.add_type('application/vnd.rar', '.rar')
+
 class FileService:
     @staticmethod
     def get_secure_path(base_nfs_path: str, relative_path: str) -> str:
@@ -36,13 +41,31 @@ class FileService:
         """
         Determina la extensión basada en el MIME y genera un nombre con la fecha actual.
         """
-        # Intentar obtener la extensión (ej: .pdf, .zip)
+        if not mime_type:
+            return f"descarga_{audit_id}.bin"
+
+        # Limpiamos el mime_type por si viene con espacios
+        mime_type = mime_type.strip().lower()
+
+        # Intentar obtener la extensión
         extension = mimetypes.guess_extension(mime_type)
         
-        # Caso especial: mimetypes a veces devuelve '.jpe' para image/jpeg o None si es desconocido
-        if not extension or extension == ".jpe":
-            extension = ".jpg" if "jpeg" in mime_type else ".bin"
+        # Correcciones manuales para casos ambiguos o fallidos
+        if not extension:
+            if 'zip' in mime_type:
+                extension = '.zip'
+            elif 'pdf' in mime_type:
+                extension = '.pdf'
+            elif 'excel' in mime_type or 'spreadsheet' in mime_type:
+                extension = '.xlsx'
+            elif 'word' in mime_type:
+                extension = '.docx'
+            else:
+                extension = '.bin' # Fallback final
 
-        # Generar nombre: YYYYMMDD_HHMMSS_ID.ext
+        # Caso especial: mimetypes a veces devuelve '.jpe'
+        if extension == ".jpe":
+            extension = ".jpg"
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         return f"descarga_{timestamp}_{audit_id}{extension}"
