@@ -75,15 +75,8 @@ async def download_file(audit_id: int, request: Request):
     start_time = time.time()
     
     # 1. Obtener Identidad y Configuración
-    # Usamos el AuthService para obtener la IP real (detrás de proxies)
     client_ip = AuthService.get_client_ip(request)
     domain = request.headers.get("x-original-host", request.headers.get("host"))
-    # x_original_host = request.headers.get("x-original-host")
-    # host = request.headers.get("host")
-    # return f"""
-    # x-forwarded-host: {x_original_host}<br>
-    # host: {host}
-    # """
     
     full_config = obtener_configuracion()
     
@@ -91,13 +84,10 @@ async def download_file(audit_id: int, request: Request):
         logger.error(f"Acceso denegado. Dominio no configurado: {domain}")
         raise HTTPException(status_code=403, detail="Dominio no autorizado.")
     
-    # Obtenemos el objeto de configuración (gracias a Pydantic es un objeto o dict limpio)
     domain_cfg = full_config[domain]
-    # Si usas Pydantic en obtener_configuracion, accedes como domain_cfg.nfs_mount_path
-    # Si es dict, usas domain_cfg["nfs_mount_path"]
     nfs_base_path = getattr(domain_cfg, "nfs_mount_path", None)
 
-    # 2. Conexión dinámica a la BD del dominio
+    # 2. Conexión dinámica a la BD
     async for db in get_db_session(domain, full_config):
         
         # 3. Buscar registro de auditoría
@@ -107,44 +97,46 @@ async def download_file(audit_id: int, request: Request):
         if not registro:
             raise HTTPException(status_code=404, detail="ID de auditoría inválido.")
 
-        # 4. Validación de Seguridad (Anti-Spam) vía AuthService
+        # 4. Validación de Seguridad
         await AuthService.check_anti_spam(db, client_ip, registro.recurso, audit_id)
 
-        # 5. Localizar archivo en el volumen NFS
+        # 5. Localizar archivo en NFS
         try:
             full_path = FileService.get_secure_path(nfs_base_path, registro.recurso)
         except HTTPException as e:
-            # Si el archivo no existe o la ruta es ilegal, marcamos FAILED
             await finalizar_auditoria(audit_id, "FAILED", 0, start_time, domain, full_config)
             raise e
 
-        # 6. Actualizar registro a estado intermedio
+        # 6. Lógica de Nombre y Extensión (NUEVA)
+        # Usamos el campo 'mime' que viene de la tabla DescargaAuditoria
+        friendly_name = FileService.generate_friendly_filename(registro.mime, audit_id)
+        content_type = registro.mime if registro.mime else "application/octet-stream"
+
+        # 7. Actualizar registro a estado intermedio
         registro.estado = "REDIRECTED"
         registro.ip = client_ip
         registro.fecha_actualizacion = datetime.now(timezone.utc)
         await db.commit()
 
-        # 7. Streaming del archivo con conteo de bytes y callback de cierre
+        # 8. Streaming wrapper (sin cambios en lógica, solo contexto)
         async def stream_wrapper():
             bytes_totales = 0
             try:
                 async for chunk in FileService.file_iterator(full_path):
                     bytes_totales += len(chunk)
                     yield chunk
-                
-                # Fin del stream exitoso
                 await finalizar_auditoria(audit_id, "COMPLETED", bytes_totales, start_time, domain, full_config)
-            
             except Exception as e:
                 logger.error(f"Error en streaming para auditoría {audit_id}: {e}")
                 await finalizar_auditoria(audit_id, "FAILED", bytes_totales, start_time, domain, full_config)
 
-        filename = os.path.basename(full_path)
+        # 9. Retorno con Headers corregidos
         return StreamingResponse(
             stream_wrapper(),
-            media_type="application/octet-stream",
+            media_type=content_type,
             headers={
-                "Content-Disposition": f"attachment; filename={filename}",
+                # El parámetro 'filename' es el que verá el navegador al descargar
+                "Content-Disposition": f'attachment; filename="{friendly_name}"',
                 "X-Content-Type-Options": "nosniff"
             }
         )

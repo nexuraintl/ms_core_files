@@ -1,5 +1,7 @@
 import os
 import aiofiles
+import mimetypes
+from datetime import datetime
 from fastapi import HTTPException
 from core.config import settings
 
@@ -28,3 +30,19 @@ class FileService:
                 chunk = await f.read(settings.CHUNK_SIZE)
                 if not chunk: break
                 yield chunk
+
+    @staticmethod
+    def generate_friendly_filename(mime_type: str, audit_id: int) -> str:
+        """
+        Determina la extensión basada en el MIME y genera un nombre con la fecha actual.
+        """
+        # Intentar obtener la extensión (ej: .pdf, .zip)
+        extension = mimetypes.guess_extension(mime_type)
+        
+        # Caso especial: mimetypes a veces devuelve '.jpe' para image/jpeg o None si es desconocido
+        if not extension or extension == ".jpe":
+            extension = ".jpg" if "jpeg" in mime_type else ".bin"
+
+        # Generar nombre: YYYYMMDD_HHMMSS_ID.ext
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        return f"descarga_{timestamp}_{audit_id}{extension}"
