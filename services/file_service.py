@@ -1,6 +1,7 @@
 import os
 import aiofiles
 import mimetypes
+import re
 from datetime import datetime
 from fastapi import HTTPException
 from core.config import settings
@@ -37,35 +38,35 @@ class FileService:
                 yield chunk
 
     @staticmethod
-    def generate_friendly_filename(mime_type: str, audit_id: int) -> str:
+    def generate_friendly_filename(nombre_db: str, mime_type: str, audit_id: int) -> str:
         """
-        Determina la extensión basada en el MIME y genera un nombre con la fecha actual.
+        Usa el nombre de la BD, limpia caracteres extraños y asegura la extensión correcta.
         """
-        if not mime_type:
-            return f"descarga_{audit_id}.bin"
+        # 1. Determinar extensión
+        extension = ".bin"
+        if mime_type:
+            mime_type = mime_type.strip().lower()
+            extension = mimetypes.guess_extension(mime_type) or ".bin"
+            
+            # Ajustes manuales
+            if not extension or extension == ".bin":
+                if 'zip' in mime_type: extension = '.zip'
+                elif 'pdf' in mime_type: extension = '.pdf'
+                elif 'excel' in mime_type or 'spreadsheet' in mime_type: extension = '.xlsx'
+            
+            if extension == ".jpe": extension = ".jpg"
 
-        # Limpiamos el mime_type por si viene con espacios
-        mime_type = mime_type.strip().lower()
-
-        # Intentar obtener la extensión
-        extension = mimetypes.guess_extension(mime_type)
+        # 2. Limpiar el nombre que viene de la BD (quitar caracteres no permitidos en archivos)
+        # Si no hay nombre, usamos un fallback
+        base_name = nombre_db if nombre_db else f"archivo_{audit_id}"
         
-        # Correcciones manuales para casos ambiguos o fallidos
-        if not extension:
-            if 'zip' in mime_type:
-                extension = '.zip'
-            elif 'pdf' in mime_type:
-                extension = '.pdf'
-            elif 'excel' in mime_type or 'spreadsheet' in mime_type:
-                extension = '.xlsx'
-            elif 'word' in mime_type:
-                extension = '.docx'
-            else:
-                extension = '.bin' # Fallback final
+        # Eliminar cualquier cosa que no sea letras, números, puntos o guiones
+        base_name = re.sub(r'[^\w\s\.-]', '', base_name)
+        # Reemplazar espacios por guiones bajos
+        base_name = base_name.replace(" ", "_")
 
-        # Caso especial: mimetypes a veces devuelve '.jpe'
-        if extension == ".jpe":
-            extension = ".jpg"
-
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        return f"descarga_{timestamp}_{audit_id}{extension}"
+        # 3. Retornar nombre final (asegurando que no se repita la extensión si el nombre ya la trae)
+        if base_name.lower().endswith(extension.lower()):
+            return base_name
+            
+        return f"{base_name}{extension}"

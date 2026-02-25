@@ -85,7 +85,12 @@ async def download_file(audit_id: int, token: str, client_id: str, request: Requ
                 raise e
 
             # 6. Preparar Metadatos
-            friendly_name = FileService.generate_friendly_filename(registro.mime, audit_id)
+            friendly_name = FileService.generate_friendly_filename(
+                nombre_db=registro.nombre, 
+                mime_type=registro.mime, 
+                audit_id=audit_id
+            )
+        
             content_type = registro.mime if registro.mime else "application/octet-stream"
 
             # 7. Marcar como REDIRECTED (Inicio de descarga)
