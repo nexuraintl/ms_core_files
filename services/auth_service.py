@@ -33,8 +33,8 @@ class AuthService:
             )
         
         # Si quieres que solo la IP que generó el registro pueda descargarlo:
-        # if registro.ip and registro.ip != ip_cliente:
-        #    raise HTTPException(status_code=403, detail="IP no autorizada para este ID.")
+        if registro.ip and registro.ip != ip_cliente:
+           raise HTTPException(status_code=403, detail="IP no autorizada para este ID.")
 
     @staticmethod
     async def check_anti_spam(
