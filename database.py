@@ -1,37 +1,71 @@
-import json
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, AsyncEngine
 from sqlalchemy.orm import sessionmaker
-from google.cloud import secretmanager
 from core.config import settings
+from schemas import ClientDBConfig
+import logging
 
-client = secretmanager.SecretManagerServiceClient()
+logger = logging.getLogger("NFS-Service")
 
-# Cache para no crear motores de BD en cada petición
-_engines = {}
+# Motor de gestión (Desactivado para pruebas, pero mantenemos la variable para evitar errores de importación)
+engine_gestion = create_async_engine("mysql+aiomysql://user:pass@localhost/db")
 
-def get_config_from_secret():
-    """Trae el JSON maestro de Secret Manager"""
-    name = f"projects/{settings.PROJECT_ID}/secrets/{settings.SECRET_ID}/versions/{settings.SECRET_VERSION}"
-    
-    response = client.access_secret_version(request={"name": name})
-    return json.loads(response.payload.data.decode("UTF-8"))
+# Cache para motores de BD de clientes
+_engines: dict[str, AsyncEngine] = {}
 
-def get_engine_for_domain(domain: str, config: dict):
-
-    domain_obj = config[domain]
-    """Retorna o crea el motor de base de datos para un dominio específico"""
-    if domain not in _engines:
-        db_cfg = domain_obj.db_config
-        url = f"mysql+aiomysql://{db_cfg.user}:{db_cfg.password}@{db_cfg.host}:{db_cfg.port}/{db_cfg.name}"
+async def get_engine_for_client(client_id: str) -> AsyncEngine:
+    """
+    Versión de PRUEBA: No consulta la BD maestra, usa datos quemados.
+    """
+    if client_id not in _engines:
+        logger.info(f"MODO PRUEBA: Cargando configuración quemada para cliente: {client_id}")
         
-        _engines[domain] = create_async_engine(
-            url, pool_size=5, max_overflow=10, pool_recycle=3600
-        )
-    return _engines[domain]
+        # --- DATOS QUEMADOS (Simula lo que traería la tabla tn_gestion_bdconex) ---
+        # Puedes agregar más IDs al diccionario según necesites probar
+        config_mock = {
+            "20001": {
+                "nombreBaseDeDatos": "portal_coomeva_import",
+                "usuario": "portal_coomeva_import",
+                "contraseña": "8wLVK3wi3l3x",
+                "hosting": "10.142.0.7", # Asegúrate que esta IP sea accesible
+                "puerto": 3306
+            }
+        }
 
-# Generador de sesión dinámico
-async def get_db_session(domain: str, config: dict):
-    engine = get_engine_for_domain(domain, config)
+        client_data = config_mock.get(client_id)
+
+        if not client_data:
+            logger.error(f"Cliente {client_id} no definido en el MOCK de pruebas")
+            return None
+        
+        try:
+            # Validamos con el esquema de Pydantic para asegurar que el formato es correcto
+            config = ClientDBConfig.model_validate(client_data)
+            
+            url_cliente = (
+                f"mysql+aiomysql://{config.usuario}:{config.password}@"
+                f"{config.hosting}:{config.puerto}/{config.nombreBaseDeDatos}"
+            )
+            
+            logger.info(f"Creando motor de BD (MOCK) para cliente: {client_id}")
+            _engines[client_id] = create_async_engine(
+                url_cliente, 
+                pool_size=5, 
+                max_overflow=10, 
+                pool_recycle=3600,
+                pool_pre_ping=True
+            )
+        except Exception as e:
+            logger.error(f"Error en configuración MOCK para cliente {client_id}: {e}")
+            return None
+            
+    return _engines[client_id]
+
+async def get_db_session(client_id: str):
+    engine = await get_engine_for_client(client_id)
+    if not engine:
+        raise ValueError(f"Configuración MOCK no encontrada para: {client_id}")
+        
     async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
     async with async_session() as session:
         yield session
