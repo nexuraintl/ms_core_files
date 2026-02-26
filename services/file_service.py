@@ -2,6 +2,7 @@ import os
 import aiofiles
 import mimetypes
 import re
+import asyncio
 from datetime import datetime
 from fastapi import HTTPException
 from core.config import settings
@@ -36,6 +37,7 @@ class FileService:
                 chunk = await f.read(settings.CHUNK_SIZE)
                 if not chunk: break
                 yield chunk
+                await asyncio.sleep(0)
 
     @staticmethod
     def generate_friendly_filename(nombre_db: str, mime_type: str, audit_id: int) -> str:
