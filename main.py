@@ -122,10 +122,17 @@ async def download_file(
                     yield chunk
                     bytes_sent += len(chunk)
                 
-                success = True # El bucle terminó, el archivo se leyó todo
+                if bytes_sent >= file_size:
+                    success = True # El bucle terminó, el archivo se leyó todo
+                    logger.info(f"Descarga completa detectada por tamaño: {bytes_sent}/{file_size}")
+            
             except Exception as e:
                 logger.warning(f"Error o desconexión en stream {audit_id}: {e}")
             finally:
+
+                if bytes_sent >= file_size:
+                    success = True
+                    
                 # FASE 3: Delegar la actualización a BackgroundTasks
                 # Esto se ejecuta incluso si el generador es cancelado
                 estado_final = "COMPLETED" if success else "FAILED"
