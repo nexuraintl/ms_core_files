@@ -14,13 +14,29 @@ from starlette.requests import ClientDisconnect
 from models import DescargaAuditoria
 from services.file_service import FileService
 from services.auth_service import AuthService
-from database import get_db_session, get_engine_for_client, _engines
+from database import get_db_session, get_engine_for_client, engine_gestion
 from core.config import settings
 
 logging.basicConfig(level=settings.LOG_LEVEL)
 logger = logging.getLogger("NFS-Service")
 
 app = FastAPI(title=settings.APP_TITLE)
+
+@app.on_event("startup")
+async def startup_event():
+    logger.info("🔍 Verificando conectividad con la base de datos maestra...")
+    try:
+        # Importamos text para la consulta de prueba
+        from sqlalchemy import text
+        
+        # Intentamos una operación mínima (SELECT 1) con un timeout corto
+        async with engine_gestion.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+            logger.info("✅ CONEXIÓN EXITOSA: El microservicio llega a la DB de Gestión.")
+    except Exception as e:
+        logger.error(f"❌ ERROR DE CONEXIÓN INICIAL: No se pudo conectar a la DB maestra.")
+        logger.error(f"Detalle técnico: {str(e)}")
+        # No detenemos la app para permitir que Cloud Run termine de subir y ver los logs
 
 async def finalizar_auditoria_dinamica(
     audit_id: int, 

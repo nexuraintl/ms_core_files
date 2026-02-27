@@ -15,8 +15,10 @@ engine_gestion = create_async_engine(
     pool_size=5,
     max_overflow=2,
     pool_recycle=3600,
-    pool_pre_ping=True
+    pool_pre_ping=True,
+    connect_args={"connect_timeout": 5}
 )
+
 
 # Cache para motores de BD de clientes (para no recrear la conexión en cada petición)
 _engines: dict[str, AsyncEngine] = {}
