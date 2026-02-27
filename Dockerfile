@@ -32,8 +32,8 @@ RUN mkdir -p /app/media
 
 # Creamos un usuario no-root por seguridad (Best Practice en Contenedores)
 # Nota: Cloud Run ignora esto si no se configura, pero es bueno tenerlo.
-#RUN adduser --disabled-password --gecos "" appuser
-#USER appuser
+RUN adduser --disabled-password --gecos "" appuser
+USER appuser
 
 # Exponemos el puerto (Cloud Run inyecta la variable PORT, por defecto 8080)
 EXPOSE 8080
@@ -41,4 +41,4 @@ EXPOSE 8080
 # Comando de inicio usando Uvicorn con workers gestionados para producción
 # --proxy-headers es vital porque estás detrás de un Load Balancer
 # Añadimos --no-access-log
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--proxy-headers", "--no-access-log", "--log-level", "info", "--timeout-keep-alive", "65"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--proxy-headers", "--forwarded-allow-ips", "*", "--no-access-log", "--log-level", "info", "--timeout-keep-alive", "65"]
