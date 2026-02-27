@@ -92,6 +92,7 @@ async def download_file(
             full_path = FileService.get_secure_path(nfs_base_path, registro.recurso)
             file_size = os.path.getsize(full_path)
             friendly_name = FileService.generate_friendly_filename(registro.nombre, registro.mime, audit_id)
+            
 
             registro.estado = "REDIRECTED"
             registro.ip = client_ip

@@ -54,8 +54,10 @@ class FileService:
             if not extension or extension == ".bin":
                 if 'zip' in mime_type: extension = '.zip'
                 elif 'pdf' in mime_type: extension = '.pdf'
+                elif 'word' in mime_type: extension = '.docx'
                 elif 'excel' in mime_type or 'spreadsheet' in mime_type: extension = '.xlsx'
-            
+                
+
             if extension == ".jpe": extension = ".jpg"
 
         # 2. Limpiar el nombre que viene de la BD (quitar caracteres no permitidos en archivos)
@@ -63,9 +65,9 @@ class FileService:
         base_name = nombre_db if nombre_db else f"archivo_{audit_id}"
         
         # Eliminar cualquier cosa que no sea letras, números, puntos o guiones
-        base_name = re.sub(r'[^\w\s\.-]', '', base_name)
-        # Reemplazar espacios por guiones bajos
-        base_name = base_name.replace(" ", "_")
+        base_name = re.sub(r'[,;\"\\/]', '', base_name)
+        # Limpiar espacios múltiples y asegurar que no sea demasiado largo
+        base_name = " ".join(base_name.split())[:150]               
 
         # 3. Retornar nombre final (asegurando que no se repita la extensión si el nombre ya la trae)
         if base_name.lower().endswith(extension.lower()):
