@@ -191,8 +191,7 @@ async def download_file(
                 "Cache-Control": "no-cache, no-store, must-revalidate",
                 "Pragma": "no-cache",
                 "Expires": "0",
-                "Accept-Ranges": "bytes",
-                "X-FIle-Size": str(file_size)
+                "Accept-Ranges": "bytes"
             }
         )
         
