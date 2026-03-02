@@ -7,7 +7,7 @@ from urllib.parse import quote  # Necesario para codificar el nombre del archivo
 from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession, AsyncEngine
-from sqlalchemy import select, update
+from sqlalchemy import select, update, text
 from starlette.requests import ClientDisconnect
 
 # Importaciones locales
@@ -60,8 +60,22 @@ async def finalizar_auditoria_dinamica(
                     codigo_http=codigo_http,
                     fecha_actualizacion=datetime.now(timezone.utc)
                 )
+                .returning(DescargaAuditoria.request_id)
+
             )
-            await session.execute(stmt)
+            res = await session.execute(stmt)
+            request_id = res.scalar_one_or_none()
+
+            if estado == "COMPLETED" and request_id:
+                # Usamos text() para la tabla tn_docs_descargas ya que parece ser una tabla de métricas
+                stmt_counter = text("""
+                    UPDATE tn_docs_descargas 
+                    SET descargas = descargas + 1 
+                    WHERE id = :req_id
+                """)
+                await session.execute(stmt_counter, {"req_id": request_id})
+                logger.info(f"📊 Contador incrementado para request_id: {request_id}")
+       
             await session.commit()
             logger.info(f"[Cliente: {client_id}] Auditoría {audit_id} cerrada como {estado}.")
         except Exception as e:
@@ -158,6 +172,7 @@ async def download_file(
         # --- CONFIGURACIÓN DE CABECERAS PARA DESCARGA FORZADA ---
         # 1. Codificar nombre para evitar errores en headers con caracteres especiales
         friendly_name_encoded = quote(friendly_name)
+        friendly_name_ascii = friendly_name.encode('ascii', 'ignore').decode('ascii')
 
         return StreamingResponse(
             stream_wrapper(),
@@ -165,7 +180,7 @@ async def download_file(
             media_type="application/octet-stream", 
             headers={
                 # 3. 'attachment' fuerza la descarga. filename* asegura compatibilidad UTF-8
-                "Content-Disposition": f"attachment; filename*=UTF-8''{friendly_name_encoded}",
+                "Content-Disposition": f'attachment; ffilename="{friendly_name_ascii}"; ilename*=UTF-8\'\'{friendly_name_encoded}',
                 #"Content-Length": str(file_size),
                 "X-Accel-Buffering": "no",
                 # 4. Prohibimos al navegador "adivinar" el contenido
@@ -173,7 +188,8 @@ async def download_file(
                 "Cache-Control": "no-cache, no-store, must-revalidate",
                 "Pragma": "no-cache",
                 "Expires": "0",
-                "Accept-Ranges": "bytes"
+                "Accept-Ranges": "bytes",
+                "X-File-Size": str(file_size)
             }
         )
         
