@@ -45,7 +45,8 @@ async def finalizar_auditoria_dinamica(
     start_time: float, 
     client_id: str, 
     codigo_http: int,
-    engine: AsyncEngine
+    engine: AsyncEngine,
+    request_id: int = None
 ):
     duracion = (time.time() - start_time) * 1000
     async with AsyncSession(engine) as session:
@@ -60,25 +61,24 @@ async def finalizar_auditoria_dinamica(
                     codigo_http=codigo_http,
                     fecha_actualizacion=datetime.now(timezone.utc)
                 )
-                .returning(DescargaAuditoria.request_id)
-
             )
-            res = await session.execute(stmt)
-            request_id = res.scalar_one_or_none()
+
+            await session.execute(stmt)
 
             if estado == "COMPLETED" and request_id:
                 # Usamos text() para la tabla tn_docs_descargas ya que parece ser una tabla de métricas
                 stmt_counter = text("""
                     UPDATE tn_docs_descargas 
-                    SET descargas = descargas + 1 
+                    SET descargas = COALESCE(descargas, 0) + 1 
                     WHERE id = :req_id
                 """)
                 await session.execute(stmt_counter, {"req_id": request_id})
                 logger.info(f"📊 Contador incrementado para request_id: {request_id}")
-       
+                
             await session.commit()
             logger.info(f"[Cliente: {client_id}] Auditoría {audit_id} cerrada como {estado}.")
         except Exception as e:
+            await session.rollback()
             logger.error(f"[Cliente: {client_id}] Error en finalizar_auditoria_dinamica: {e}")
 
 @app.get("/core/files/download/{audit_id}")
@@ -97,6 +97,7 @@ async def download_file(
     friendly_name = None
     file_size = 0
     engine_cliente = None
+    registro_id_for_stats = None
 
     try:
         engine_cliente = await get_engine_for_client(client_id)
@@ -110,6 +111,8 @@ async def download_file(
             if not registro:
                 raise HTTPException(status_code=404, detail="ID de auditoría inválido.")
             
+            registro_id_for_stats = registro.request_id
+
             try:
                 AuthService.validar_token_auditoria(token, registro)
             except HTTPException as e:
@@ -166,7 +169,7 @@ async def download_file(
                 codigo_http = 200 if success else 499
                 background_tasks.add_task(
                     finalizar_auditoria_dinamica,
-                    audit_id, estado_final, bytes_sent, start_time, client_id, codigo_http, engine_cliente
+                    audit_id, estado_final, bytes_sent, start_time, client_id, codigo_http, engine_cliente, registro_id_for_stats
                 )
 
         # --- CONFIGURACIÓN DE CABECERAS PARA DESCARGA FORZADA ---
@@ -188,7 +191,8 @@ async def download_file(
                 "Cache-Control": "no-cache, no-store, must-revalidate",
                 "Pragma": "no-cache",
                 "Expires": "0",
-                "Accept-Ranges": "bytes"
+                "Accept-Ranges": "bytes",
+                "X-FIle-Size": str(file_size)
             }
         )
         
