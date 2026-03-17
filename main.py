@@ -90,7 +90,6 @@ async def download_file(
     background_tasks: BackgroundTasks
 ):
     start_time = time.time()
-    AuthService.validar_access_token_google(token, client_id)
     client_ip = AuthService.get_client_ip(request)
     nfs_base_path = "/app/media" 
     
@@ -113,6 +112,16 @@ async def download_file(
                 raise HTTPException(status_code=404, detail="ID de auditoría inválido.")
             
             registro_id_for_stats = registro.request_id
+
+            try:
+                AuthService.validar_access_token_google(token, client_id)
+            except HTTPException as e:
+                # Si el token es inválido, auditamos el fallo antes de lanzar el error
+                background_tasks.add_task(
+                    finalizar_auditoria_dinamica, 
+                    audit_id, "FAILED", 0, start_time, client_id, e.status_code, engine_cliente
+                )
+                raise e
 
             try:
                 AuthService.validar_token_auditoria(token, registro)
