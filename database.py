@@ -46,7 +46,7 @@ async def get_engine_for_client(client_id: str) -> AsyncEngine:
                     hosting, 
                     puerto 
                 FROM tn_gestion_bdconex 
-                WHERE id_cliente = :client_id 
+                WHERE idCliente = :client_id 
                 AND estado = 1 
                 LIMIT 1
             """)
