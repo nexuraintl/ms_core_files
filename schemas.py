@@ -8,7 +8,7 @@ class ClientDBConfig(BaseModel):
     nombreBaseDeDatos: str
     usuario: str
     # Mapeamos 'contraseña' a un nombre de atributo sin caracteres especiales para Python
-    password: str = Field(..., alias="contraseña") 
+    password: str = Field(..., alias="contrasena") 
     hosting: str
     puerto: int = 3306
 
