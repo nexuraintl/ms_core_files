@@ -151,29 +151,53 @@ async def download_file(
             break 
 
         async def stream_wrapper():
-            bytes_sent = 0
-            success = False
+            # Usamos un diccionario para asegurar que el estado sea mutable y persistente
+            stats = {"bytes_sent": 0, "success": False}
+            
             try:
                 logger.info(f"🚀 Iniciando stream para ID {audit_id}. Tamaño total: {file_size} bytes")
 
                 async for chunk in FileService.file_iterator(full_path):
+                    # Verificamos desconexión antes de enviar
                     if await request.is_disconnected():
+                        logger.warning(f"❌ Cliente desconectado en byte {stats['bytes_sent']}")
                         raise ClientDisconnect("Cliente desconectado")
+                    
                     yield chunk
-                    bytes_sent += len(chunk)
+                    stats["bytes_sent"] += len(chunk)
                 
-                if bytes_sent >= file_size:
-                    success = True 
-                    logger.info(f"✅ Stream finalizado con éxito para ID {audit_id}. Total: {bytes_sent} bytes")
+                # Verificación de integridad: Si enviamos todo, es éxito
+                if stats["bytes_sent"] >= file_size:
+                    stats["success"] = True 
+                    logger.info(f"✅ Stream finalizado con éxito para ID {audit_id}. Total: {stats['bytes_sent']} bytes")
+                else:
+                    logger.warning(f"⚠️ Stream incompleto: {stats['bytes_sent']}/{file_size} bytes")
 
             except Exception as e:
-                logger.error(f"🔥 Error crítico en el stream de ID {audit_id} (Byte {bytes_sent}): {str(e)}")
+                # Si es una desconexión normal del cliente, no lo logueamos como error crítico
+                if isinstance(e, ClientDisconnect):
+                    logger.info(f"ℹ️ Cliente cerró la conexión para ID {audit_id}")
+                else:
+                    logger.error(f"🔥 Error en stream ID {audit_id}: {str(e)}")
+            
             finally:
-                estado_final = "COMPLETED" if success else "FAILED"
-                codigo_http = 200 if success else 499
+                # Determinamos estado final basándonos en los bytes reales enviados
+                # Un margen de error de 0 bytes (comparación exacta)
+                final_success = stats["success"] or (stats["bytes_sent"] >= file_size and file_size > 0)
+                
+                estado_final = "COMPLETED" if final_success else "FAILED"
+                codigo_http = 200 if final_success else 499
+                
                 background_tasks.add_task(
                     finalizar_auditoria_dinamica,
-                    audit_id, estado_final, bytes_sent, start_time, client_id, codigo_http, engine_cliente, registro_id_for_stats
+                    audit_id, 
+                    estado_final, 
+                    stats["bytes_sent"], 
+                    start_time, 
+                    client_id, 
+                    codigo_http, 
+                    engine_cliente, 
+                    registro_id_for_stats
                 )
 
         # Codificación de cabeceras
