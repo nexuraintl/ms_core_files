@@ -1,6 +1,7 @@
 import os
 from pydantic_settings import BaseSettings
 from typing import Optional
+from urllib.parse import quote_plus
 
 class Settings(BaseSettings):
 
@@ -13,8 +14,12 @@ class Settings(BaseSettings):
 
     @property
     def DATABASE_URL_GESTION(self) -> str:
+
+        user_safe = quote_plus(self.DB_GESTION_USER) if self.DB_GESTION_USER else ""
+        pass_safe = quote_plus(self.DB_GESTION_PASS) if self.DB_GESTION_PASS else ""
+
         return (
-            f"mysql+aiomysql://{self.DB_GESTION_USER}:{self.DB_GESTION_PASS}@"
+            f"mysql+aiomysql://{user_safe}:{pass_safe}@"
             f"{self.DB_GESTION_HOST}:{self.DB_GESTION_PORT}/{self.DB_GESTION_NAME}"
         )
 

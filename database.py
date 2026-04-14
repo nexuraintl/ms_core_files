@@ -2,6 +2,7 @@ import logging
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, AsyncEngine
 from sqlalchemy.orm import sessionmaker
+from urllib.parse import quote_plus
 from core.config import settings
 from schemas import ClientDBConfig
 
@@ -59,9 +60,12 @@ async def get_engine_for_client(client_id: str) -> AsyncEngine:
 
             # Validamos con el esquema de Pydantic
             config = ClientDBConfig.model_validate(dict(row))
+
+            password_safe = quote_plus(config.password)
+            user_safe = quote_plus(config.usuario)
             
             url_cliente = (
-                f"mysql+aiomysql://{config.usuario}:{config.password}@"
+                f"mysql+aiomysql://{user_safe}:{password_safe}@"
                 f"{config.hosting}:{config.puerto}/{config.nombreBaseDeDatos}"
             )
             
